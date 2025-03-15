@@ -59,3 +59,7 @@ The script takes a CFA image and its corresponding RGB image as input, along wit
 -   `demosaiced_gbrg.png`, `demosaiced_grbg.png`, `demosaiced_bggr.png`, `demosaiced_rggb.png`: Demosaiced image fragments using each of the four Bayer patterns.
 -   `raw_image.png`: Raw cfa image fragment.
 -   `rgb_image.png`: RGB image fragment.
+
+## Recomendation
+I strongly recommend reading this article for a better understanding of this topic:
+[Articel](https://www.mdpi.com/1424-8220/20/3/902# "Noise Removal in the Developing Process of Digital Negatives")
