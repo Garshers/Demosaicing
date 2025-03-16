@@ -1,64 +1,34 @@
-function [best_pattern, results] = identify_bayer_pattern(cfa_image, rgb_image, start_row, end_row, start_column, end_column)
+function identify_bayer_pattern(cfa_image, rgb_image, roi_row, roi_col)
 % Define Bayer patterns
 patterns = {'gbrg', 'grbg', 'bggr', 'rggb'};
-results = zeros(1, 4);
+
 % Analyze image fragment
-rgb_fragment = rgb_image(start_row:end_row, start_column:end_column, :);
+rgb_fragment = rgb_image(roi_row, roi_col, :);
+cfa_fragment = cfa_image(roi_row, roi_col);
+
 % Identify Bayer matrix pattern
-for i = 1:4
+for i = 1:length(patterns)
     demosaiced_image = demosaic(cfa_image, patterns{i});
-    demosaiced_fragment = demosaiced_image(start_row:end_row, start_column:end_column, :);
-    results(i) = immse(demosaiced_fragment, rgb_fragment);
-end
-% Select the best pattern
-[~, best_index] = min(results);
-best_pattern = patterns{best_index};
+    demosaiced_fragment = demosaiced_image(roi_row, roi_col, :);
+
+    describedImage_post = insertText(demosaiced_fragment, [5 5], patterns{i}, 'FontSize', 8, 'TextColor', 'black', 'BoxOpacity', 0.4);
+    imwrite(describedImage_post, ['demosaiced_', patterns{i}, '.png']);
 end
 
-function run_bayer_identification()
-    % Call the function
-    cfa_image = imread('demo_CFA.png');
-    rgb_image = imread('demo_srgb.png');
-    start_row = 80;
-    end_row = 180;
-    start_column = 90;
-    end_column = 190;
-    [best_pattern, errors] = identify_bayer_pattern(cfa_image, rgb_image, start_row, end_row, start_column, end_column);
-    
-    % Display results
-    disp(['Best Bayer matrix pattern: ', best_pattern]);
-    disp('MSE errors for each pattern:');
-    disp(errors);
-    
-    % Demosaicing with the best pattern and display
-    best_demosaiced_image = demosaic(cfa_image, best_pattern);
-    
-    % Focusing on the analyzed fragment
-    crop_rect = [start_column start_row end_column-start_column end_row-start_row]; % [x y width height]
-    best_demosaiced_cropped = imcrop(best_demosaiced_image, crop_rect);
-    figure(1);
-    imshow(best_demosaiced_cropped);
-    title(best_pattern);
-    
-    % Save demosaiced fragment
-    imwrite(best_demosaiced_cropped, 'best_demosaiced.png');
-    
-    % Save demosaiced fragments for each pattern
-    patterns = {'gbrg', 'grbg', 'bggr', 'rggb'};
-    
-    for i = 1:4
-        demosaiced_image = demosaic(cfa_image, patterns{i});
-        demosaiced_cropped = imcrop(demosaiced_image, crop_rect); % Crop to the analyzed fragment
-        imwrite(demosaiced_cropped, ['demosaiced_', patterns{i}, '.png']);
-    end
-    
-    % Save raw image fragment
-    cfa_fragment = imcrop(cfa_image, crop_rect);
-    imwrite(cfa_fragment, 'raw_image.png');
-    
-    % Save RGB image fragment
-    rgb_fragment = imcrop(rgb_image, crop_rect);
-    imwrite(rgb_fragment, 'rgb_image.png');
+% Konwersja surowego fragmentu do RGB (powielanie kanałów)
+raw_image = cat(3, cfa_fragment, cfa_fragment, cfa_fragment);
+
+% Save raw image fragment
+raw_image_post = insertText(raw_image, [5 5], 'raw image', 'FontSize', 8, 'TextColor', 'black', 'BoxOpacity', 0.4);
+imwrite(raw_image_post, 'raw_image.png');
+
+% Save RGB image fragment
+rgb_image_post = insertText(rgb_fragment, [5 5], 'rgb image', 'FontSize', 8, 'TextColor', 'black', 'BoxOpacity', 0.4);
+imwrite(rgb_image_post, 'rgb_image.png');
 end
 
-run_bayer_identification()
+cfa_image = imread('IMG_003_srgb_CFA.png');
+rgb_image = imread('IMG_003_srgb.png');
+roi_row = 80:180;
+roi_col = 90:190;
+identify_bayer_pattern(cfa_image, rgb_image, roi_row, roi_col);
