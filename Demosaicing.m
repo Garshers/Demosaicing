@@ -1,33 +1,33 @@
 function identify_bayer_patterns(cfa_image, rgb_image, roi_row, roi_col)
-% Define Bayer patterns
-patterns = {'gbrg', 'grbg', 'bggr', 'rggb'};
-
-% Analyze image fragment
-rgb_fragment = rgb_image(roi_row, roi_col, :);
-cfa_fragment = cfa_image(roi_row, roi_col);
-
-% Identify different demosaiced image fragment
-for i = 1:length(patterns)
-    demosaiced_image = demosaic(cfa_image, patterns{i});
-    demosaiced_fragment = demosaiced_image(roi_row, roi_col, :);
-
-    % Save demosaiced image fragment
-    describedImage_post = insertText(demosaiced_fragment, [5 5], patterns{i}, 'FontSize', 8, 'TextColor', 'black', 'BoxOpacity', 0.4);
-    imwrite(describedImage_post, ['demosaiced_', patterns{i}, '.png']);
-end
-
-% Raw fragment conversion to RGB (channel duplication)
-raw_image_rgb = cat(3, cfa_fragment, cfa_fragment, cfa_fragment);
-% This operation doesn't make color image (image is sill black and white)
-% But it enables to save it as a standard RGB (np. .png, .jpg)
-
-% Save raw image fragment
-raw_image_post = insertText(raw_image_rgb, [5 5], 'raw image', 'FontSize', 8, 'TextColor', 'black', 'BoxOpacity', 0.4);
-imwrite(raw_image_post, 'raw_image.png');
-
-% Save RGB image fragment
-rgb_image_post = insertText(rgb_fragment, [5 5], 'rgb image', 'FontSize', 8, 'TextColor', 'black', 'BoxOpacity', 0.4);
-imwrite(rgb_image_post, 'rgb_image.png');
+    % Define Bayer patterns
+    patterns = {'gbrg', 'grbg', 'bggr', 'rggb'};
+    
+    % Analyze image fragment
+    rgb_fragment = rgb_image(roi_row, roi_col, :);
+    cfa_fragment = cfa_image(roi_row, roi_col);
+    
+    % Identify different demosaiced image fragment
+    for i = 1:length(patterns)
+        demosaiced_image = demosaic(cfa_image, patterns{i});
+        demosaiced_fragment = demosaiced_image(roi_row, roi_col, :);
+    
+        % Save demosaiced image fragment
+        describedImage_post = insertText(demosaiced_fragment, [5 5], patterns{i}, 'FontSize', 8, 'TextColor', 'black', 'BoxOpacity', 0.4);
+        imwrite(describedImage_post, ['demosaiced_', patterns{i}, '.png']);
+    end
+    
+    % Raw fragment conversion to RGB (channel duplication)
+    raw_image_rgb = cat(3, cfa_fragment, cfa_fragment, cfa_fragment);
+    % This operation doesn't make color image (image is sill black and white)
+    % But it enables to save it as a standard RGB (np. .png, .jpg)
+    
+    % Save raw image fragment
+    raw_image_post = insertText(raw_image_rgb, [5 5], 'raw image', 'FontSize', 8, 'TextColor', 'black', 'BoxOpacity', 0.4);
+    imwrite(raw_image_post, 'raw_image.png');
+    
+    % Save RGB image fragment
+    rgb_image_post = insertText(rgb_fragment, [5 5], 'rgb image', 'FontSize', 8, 'TextColor', 'black', 'BoxOpacity', 0.4);
+    imwrite(rgb_image_post, 'rgb_image.png');
 end
 
 function [included_time, oryginal_time] = interpolation(cfa_image, rgb_image, roi_row, roi_col, output_prefix, interpolation_method)
@@ -38,12 +38,14 @@ function [included_time, oryginal_time] = interpolation(cfa_image, rgb_image, ro
     
     % Resize CFA image
     n = 4;
-    cfa_resized = imresize(cfa_image, n, interpolation_method);
+    %cfa_resized = imresize(cfa_image, n, interpolation_method);
+    cfa_resized = image_interpolation(cfa_image, n, interpolation_method);
     cfa_resized_rgb = cat(3, cfa_resized, cfa_resized, cfa_resized);
     
     % Resize RGB image
     tic;
-    rgb_resized = imresize(rgb_image, n, interpolation_method);
+    %cfa_resized = imresize(rgb_image, n, interpolation_method);
+    rgb_resized = image_interpolation(rgb_image, n, interpolation_method);
     oryginal_time = toc;
     
     tic;
@@ -105,11 +107,70 @@ function [included_time, oryginal_time] = interpolation(cfa_image, rgb_image, ro
     title([interpolation_method, ' interpolation']);
 end
 
+function resized_image = image_interpolation(image, n, method)
+    [original_height, original_width, num_channels] = size(image);
+    new_height = round(original_height * n);
+    new_width = round(original_width * n);
+    resized_image = -ones(new_height, new_width, num_channels, class(image)); % Output image (all -1)
+    
+    if strcmp(method, 'nearest') % Nearest neighbor interpolation
+        for new_y = 1:new_height
+            for new_x = 1:new_width
+                % Give value to each pixel in the resized image taking the nearest pixel in the original image
+                original_x = floor((new_x - 1) / n) + 1; % Edge cases not included <--
+                original_y = floor((new_y - 1) / n) + 1;
+                
+                % Copy the original pixel value to the resized image
+                resized_image(new_y, new_x, :) = image(original_y, original_x, :);
+            end
+        end
+    elseif strcmp(method, 'bilinear') % Bilinear interpolation
+        % Calculate scaling ratios for x and y coordinates
+        x_ratio = (original_width - 1) / max(new_width - 1, 1);
+        y_ratio = (original_height - 1) / max(new_height - 1, 1);
+    
+        for new_y = 1:new_height
+            for new_x = 1:new_width
+                % Map coordinates using scaling ratios
+                x = (new_x - 1) * x_ratio + 1;
+                y = (new_y - 1) * y_ratio + 1;
+    
+                % Find the four neighboring pixels
+                x1 = floor(x);
+                y1 = floor(y);
+                x2 = min(x1 + 1, original_width);
+                y2 = min(y1 + 1, original_height);
+    
+                % Calculate weights
+                dx = x - x1;
+                dy = y - y1;
+    
+                % Process each channel
+                for channel = 1:num_channels
+                    % Get neighboring pixel values
+                    pixel1 = double(image(y1, x1, channel));
+                    pixel2 = double(image(y1, x2, channel));
+                    pixel3 = double(image(y2, x1, channel));
+                    pixel4 = double(image(y2, x2, channel));
+    
+                    % Bilinear interpolation
+                    interpolated_pixel = (1 - dx) * (1 - dy) * pixel1 + dx * (1 - dy) * pixel2 + ...
+                                         (1 - dx) * dy * pixel3 + dx * dy * pixel4;
+    
+                    resized_image(new_y, new_x, channel) = interpolated_pixel;
+                end
+            end
+        end
+    else
+        error('Unknown method. Select "nearest" or "bilinear".');
+    end
+end
+
 cfa_image = imread('IMG_010_srgb_CFA.png');
 rgb_image = imread('IMG_010_srgb.png');
 roi_row = 30:130;
 roi_col = 150:250;
 
-identify_bayer_patterns(cfa_image, rgb_image, roi_row, roi_col);
-[time_demosaic1, time_cfa1] = interpolation(cfa_image, rgb_image, roi_row, roi_col, 'image3_010', 'nearest');
-[time_demosaic2, time_cfa2] = interpolation(cfa_image, rgb_image, roi_row, roi_col, 'image3_010', 'bilinear');
+%identify_bayer_patterns(cfa_image, rgb_image, roi_row, roi_col);
+%[~, ~] = interpolation(cfa_image, rgb_image, roi_row, roi_col, 'image2_010_srgb', 'nearest');
+[~, ~] = interpolation(cfa_image, rgb_image, roi_row, roi_col, 'image3_010_srgb', 'bilinear');
